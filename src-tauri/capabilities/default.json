@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions the Mieterm window needs. Deliberately narrow: no shell plugin, no arbitrary HTTP, no filesystem access beyond what the user picks in a dialog. Terminals are spawned by the Rust side, not by the webview.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-title",
+    "core:window:allow-start-dragging",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "opener:allow-open-url",
+    "updater:default",
+    "process:allow-restart",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text"
+  ]
+}

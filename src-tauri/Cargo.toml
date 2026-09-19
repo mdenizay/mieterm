@@ -1,0 +1,74 @@
+[package]
+name = "mieterm"
+version = "1.0.0"
+description = "A fast, native SSH client and terminal"
+authors = ["mdenizay"]
+license = "MIT"
+repository = "https://github.com/mdenizay/mieterm"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+# Tauri builds the app as a library plus a thin binary. Keeping the core in a library is
+# what lets the tests exercise it without going through the app.
+#
+# Only rlib: the staticlib and cdylib in Tauri's default template exist for the iOS and
+# Android targets, which this app does not build. A debug staticlib links the whole
+# dependency tree with symbols into one archive — several gigabytes that nothing here
+# ever reads.
+name = "mieterm_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+dirs = "7"
+base64 = "0.22"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "time", "io-util", "net", "process"] }
+
+# Credentials go to the OS store on every platform: Keychain, Credential Manager,
+# or the Secret Service.
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+
+# The terminal itself. A real PTY is what makes full-screen programs — vim, htop, less,
+# tmux — behave, and portable-pty gives the same API over ConPTY on Windows.
+portable-pty = "0.9"
+
+# The file browser talks SFTP directly, because the terminal's transport (the system ssh
+# client) has no structured file interface. Both stacks reach the same server; only the
+# file browser needs to parse anything.
+#
+# default-features = false keeps aws-lc-rs out of the tree: it wants cmake and nasm on
+# Windows, and ring is already enough for everything here.
+russh = { version = "0.63", default-features = false, features = ["ring", "flate2", "rsa"] }
+russh-sftp = "3"
+async-trait = "0.1"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.dev]
+# Full debug info on a tree this size costs several gigabytes of disk and a noticeable
+# part of every link. Line tables keep backtraces and panic locations readable.
+debug = "line-tables-only"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

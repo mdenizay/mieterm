@@ -1,0 +1,14 @@
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/
+
+# Node / Vite
+node_modules/
+dist/
+*.tsbuildinfo
+
+# macOS
+.DS_Store
+
+# Updater signing keys — the private key must never be committed
+*.key
