@@ -385,10 +385,46 @@ async fn try_key(
     }
 }
 
+/// Connects to whatever SSH agent this platform offers.
+///
+/// Split by platform because the transport is: a Unix socket named by `SSH_AUTH_SOCK`,
+/// or on Windows a named pipe (OpenSSH) or Pageant (PuTTY, KeeAgent, 1Password). The
+/// generic half below is shared, since only the connect step differs.
+#[cfg(unix)]
 async fn try_agent(handle: &mut Handle<HostKeyCheck>, user: &str) -> AppResult<()> {
     let mut agent = AgentClient::connect_env()
         .await
         .map_err(|e| AppError::new("No SSH agent is available.").with_detail(e.to_string()))?;
+    offer_agent_keys(handle, user, &mut agent).await
+}
+
+#[cfg(windows)]
+async fn try_agent(handle: &mut Handle<HostKeyCheck>, user: &str) -> AppResult<()> {
+    // OpenSSH's own agent first, because that is the one `ssh.exe` uses and therefore the
+    // one the terminal side is already authenticating with.
+    if let Ok(mut agent) = AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent").await {
+        if let Ok(()) = offer_agent_keys(handle, user, &mut agent).await {
+            return Ok(());
+        }
+    }
+    if let Ok(mut agent) = AgentClient::connect_pageant().await {
+        return offer_agent_keys(handle, user, &mut agent).await;
+    }
+    Err(AppError::new("No SSH agent is available.").with_detail(
+        "Neither the OpenSSH agent service nor Pageant answered. Start the OpenSSH \
+         Authentication Agent service, or choose a key file on the server instead.",
+    ))
+}
+
+/// Tries every identity the agent holds, in the order it offers them.
+async fn offer_agent_keys<S>(
+    handle: &mut Handle<HostKeyCheck>,
+    user: &str,
+    agent: &mut AgentClient<S>,
+) -> AppResult<()>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
+{
     let identities = agent
         .request_identities()
         .await
@@ -407,7 +443,7 @@ async fn try_agent(handle: &mut Handle<HostKeyCheck>, user: &str) -> AppResult<(
             russh::keys::agent::AgentIdentity::Certificate { .. } => continue,
         };
         if let Ok(result) = handle
-            .authenticate_publickey_with(user, public, hash_alg, &mut agent)
+            .authenticate_publickey_with(user, public, hash_alg, agent)
             .await
         {
             if result.success() {
