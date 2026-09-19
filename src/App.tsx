@@ -25,9 +25,11 @@ import { Sidebar } from "./components/Sidebar";
 import { SftpBrowser } from "./components/SftpBrowser";
 import { SnippetsPanel } from "./components/SnippetsPanel";
 import { TerminalPane, type PaneHandle } from "./components/TerminalPane";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { api } from "./lib/api";
 import { encodeText } from "./lib/bytes";
 import { translator } from "./lib/i18n";
+import { useUpdater } from "./lib/useUpdater";
 import {
   asError,
   emptyHost,
@@ -83,6 +85,13 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
 
   const handles = useRef(new Map<string, PaneHandle>());
+
+  // Settings load asynchronously, so until they do the check is simply off; it fires a few
+  // seconds after they arrive, which is also after the window has settled.
+  const updater = useUpdater({
+    enabled: settings?.autoUpdate ?? false,
+    downloadAutomatically: settings?.autoDownloadUpdates ?? true,
+  });
 
   const t = useMemo(() => translator(settings?.language ?? "en"), [settings?.language]);
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId) ?? null, [tabs, activeTabId]);
@@ -338,6 +347,15 @@ export default function App() {
 
   return (
     <div className="app">
+      <UpdateBanner
+        stage={updater.stage}
+        dismissed={updater.dismissed}
+        t={t}
+        onDismiss={updater.dismiss}
+        onDownload={() => void updater.startDownload()}
+        onInstall={() => void updater.installAndRestart()}
+      />
+
       <div className="chrome">
         <button className="chrome-button" onClick={() => setEditingHost(emptyHost())}>
           <ServerStackIcon className="icon-lg" />
@@ -646,6 +664,8 @@ export default function App() {
           settings={settings}
           onSave={persistSettings}
           onClose={() => setSettingsOpen(false)}
+          updateStage={updater.stage}
+          onCheckUpdates={() => void updater.checkNow()}
           t={t}
         />
       )}

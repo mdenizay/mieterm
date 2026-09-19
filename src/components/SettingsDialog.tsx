@@ -1,18 +1,28 @@
 import { useEffect, useState } from "react";
-import { Cog6ToothIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import { api } from "../lib/api";
 import { TERMINAL_THEMES } from "../lib/themes";
 import type { Diagnostics, Settings } from "../lib/types";
 import type { Translate } from "../lib/i18n";
+import type { UpdateStage } from "../lib/useUpdater";
 
 interface Props {
   settings: Settings;
   onSave: (settings: Settings) => void;
   onClose: () => void;
+  updateStage: UpdateStage;
+  onCheckUpdates: () => void;
   t: Translate;
 }
 
-export function SettingsDialog({ settings: initial, onSave, onClose, t }: Props) {
+export function SettingsDialog({
+  settings: initial,
+  onSave,
+  onClose,
+  updateStage,
+  onCheckUpdates,
+  t,
+}: Props) {
   const [settings, setSettings] = useState(initial);
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
 
@@ -153,6 +163,39 @@ export function SettingsDialog({ settings: initial, onSave, onClose, t }: Props)
             {t("recordSessions")}
           </label>
 
+          <div className="section-title">{t("updates")}</div>
+
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.autoUpdate}
+              onChange={(e) => patch({ autoUpdate: e.target.checked })}
+            />
+            {t("autoUpdate")}
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.autoDownloadUpdates}
+              disabled={!settings.autoUpdate}
+              onChange={(e) => patch({ autoDownloadUpdates: e.target.checked })}
+            />
+            {t("autoDownloadUpdates")}
+          </label>
+
+          <div className="row">
+            <button
+              style={{ flex: "0 0 auto" }}
+              disabled={updateStage.kind === "checking" || updateStage.kind === "downloading"}
+              onClick={onCheckUpdates}
+            >
+              <ArrowPathIcon className="icon" />
+              {t("updateCheckNow")}
+            </button>
+            <div style={{ flex: 1 }}>{describeUpdate(updateStage, t)}</div>
+          </div>
+          <div className="hint">{t("updateNeverRestartsAlone")}</div>
+
           {diagnostics && (
             <>
               <div className="section-title">{t("about")}</div>
@@ -176,4 +219,32 @@ export function SettingsDialog({ settings: initial, onSave, onClose, t }: Props)
       </div>
     </div>
   );
+}
+
+/** The one-line status next to the "check now" button. */
+function describeUpdate(stage: UpdateStage, t: Translate) {
+  switch (stage.kind) {
+    case "checking":
+      return <span className="hint">{t("updateChecking")}</span>;
+    case "none":
+      return <span className="good">{t("updateUpToDate")}</span>;
+    case "available":
+      return <span className="good">{t("updateAvailable", { version: stage.version })}</span>;
+    case "downloading":
+      return (
+        <span className="hint">
+          {t("updateDownloading", { version: stage.version })} — {stage.percent}%
+        </span>
+      );
+    case "ready":
+      return <span className="good">{t("updateReady", { version: stage.version })}</span>;
+    case "installing":
+      return <span className="hint">{t("updateInstalling")}</span>;
+    case "failed":
+      // The underlying message is usually a network error; it is shown because "could not
+      // check" on its own leaves nobody anywhere to go.
+      return <span className="bad">{t("updateFailed")}: {stage.message}</span>;
+    default:
+      return null;
+  }
 }

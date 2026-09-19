@@ -140,6 +140,10 @@ pub struct Settings {
     /// Keep the connection alive through a NAT that drops idle flows.
     pub keepalive_seconds: u32,
     pub language: String,
+    /// Look for a new version a few seconds after launch.
+    pub auto_update: bool,
+    /// Fetch it in the background once found. Installing is still a click, always.
+    pub auto_download_updates: bool,
 }
 
 impl Default for Settings {
@@ -156,6 +160,8 @@ impl Default for Settings {
             copy_on_select: true,
             keepalive_seconds: 30,
             language: "en".into(),
+            auto_update: true,
+            auto_download_updates: true,
         }
     }
 }

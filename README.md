@@ -40,6 +40,7 @@ Built with [Tauri](https://tauri.app), React and Rust. The whole app is around 1
   with live status, and optionally opened when the app starts
 - **SFTP file browser** — editable path bar, upload, download, rename, new folder, delete, hidden-file toggle
 - **Session recording** — write terminal output to disk, then search across every recording at once
+- **Signed in-app updates** — checked on launch, downloaded in the background, installed only when you say so
 
 ## Install
 
@@ -52,7 +53,10 @@ Download the latest build for your platform from
 | Windows | `.exe` installer |
 | Linux | `.AppImage`, `.deb` or `.rpm` |
 
-Mieterm checks for updates on launch and installs them in place.
+Mieterm checks for a new version a few seconds after launch and, if you let it, downloads
+it in the background. It never restarts on its own — installing is one click, whenever you
+choose, so a running deploy or a `tail -f` you are watching is never cut off. Both steps
+can be turned off in Settings › Updates, which is also where you can check on demand.
 
 ### Requirements
 

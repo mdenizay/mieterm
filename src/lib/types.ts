@@ -59,6 +59,8 @@ export interface Settings {
   copyOnSelect: boolean;
   keepaliveSeconds: number;
   language: "en" | "tr";
+  autoUpdate: boolean;
+  autoDownloadUpdates: boolean;
 }
 
 export interface RemoteFile {
