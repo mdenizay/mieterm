@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
+  ArrowUturnUpIcon,
+  ArrowPathIcon,
+  DocumentIcon,
+  EyeIcon,
+  FolderIcon,
+  FolderPlusIcon,
+  LinkIcon,
+  PencilSquareIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
 import { open as openFileDialog, save as saveFileDialog } from "@tauri-apps/plugin-dialog";
 import { api } from "../lib/api";
-import { asError, hostLabel, type AppError, type Host, type RemoteFile } from "../lib/types";
+import { asError, type AppError, type Host, type RemoteFile } from "../lib/types";
 import type { Translate } from "../lib/i18n";
 
 interface Props {
@@ -176,9 +189,9 @@ export function SftpBrowser({ host, onError, onBusy, t }: Props) {
 
   return (
     <>
-      <div className="drawer-bar">
-        <button className="ghost" disabled={!parent} title={t("parentFolder")} onClick={() => parent && setPath(parent)}>
-          ↑
+      <div className="drawer-toolbar">
+        <button className="quiet" disabled={!parent} title={t("parentFolder")} onClick={() => parent && setPath(parent)}>
+          <ArrowUturnUpIcon className="icon" />
         </button>
         <input
           value={pathDraft}
@@ -188,16 +201,28 @@ export function SftpBrowser({ host, onError, onBusy, t }: Props) {
             if (e.key === "Escape") setPathDraft(path);
           }}
         />
-        <button className="ghost" title={t("refresh")} onClick={() => void refresh()}>↻</button>
+        <button className="quiet" title={t("refresh")} onClick={() => void refresh()}>
+          <ArrowPathIcon className="icon" />
+        </button>
       </div>
 
-      <div className="drawer-bar">
-        <button onClick={upload} disabled={!connectionId}>{t("upload")}</button>
-        <button onClick={makeDirectory} disabled={!connectionId}>{t("newFolder")}</button>
-        <label className="checkbox" style={{ marginLeft: "auto", marginBottom: 0 }}>
-          <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
-          <span>{t("showHidden")}</span>
-        </label>
+      <div className="drawer-toolbar">
+        <button onClick={upload} disabled={!connectionId}>
+          <ArrowUpTrayIcon className="icon" />
+          {t("upload")}
+        </button>
+        <button onClick={makeDirectory} disabled={!connectionId}>
+          <FolderPlusIcon className="icon" />
+          {t("newFolder")}
+        </button>
+        <div className="spacer" />
+        <button
+          className={showHidden ? "on" : "quiet"}
+          title={t("showHidden")}
+          onClick={() => setShowHidden((on) => !on)}
+        >
+          <EyeIcon className="icon" />
+        </button>
       </div>
 
       <div className="drawer-body">
@@ -205,20 +230,27 @@ export function SftpBrowser({ host, onError, onBusy, t }: Props) {
 
         {!loading && visible.length === 0 && (
           <div className="empty">
-            <strong>{t("emptyFolder")}</strong>
-            {hostLabel(host)}
+            <FolderIcon className="icon-xl" />
+            <div>{t("emptyFolder")}</div>
           </div>
         )}
 
-        <div className="rows">
+        <div className="list">
           {visible.map((file) => (
             <div
               key={file.path}
-              className={`row${file.isDir ? " clickable" : ""}`}
+              className="list-item"
               onDoubleClick={() => (file.isDir ? setPath(file.path) : void download(file))}
             >
-              <div className="file-icon">{file.isDir ? "📁" : file.isSymlink ? "🔗" : "📄"}</div>
-              <div className="row-main">
+              {file.isDir ? (
+                <FolderIcon className="icon" style={{ color: "var(--accent)" }} />
+              ) : file.isSymlink ? (
+                <LinkIcon className="icon" style={{ color: "var(--text-faint)" }} />
+              ) : (
+                <DocumentIcon className="icon" style={{ color: "var(--text-faint)" }} />
+              )}
+
+              <span className="label">
                 {renaming?.path === file.path ? (
                   <input
                     autoFocus
@@ -232,35 +264,37 @@ export function SftpBrowser({ host, onError, onBusy, t }: Props) {
                   />
                 ) : (
                   <>
-                    <div className="row-title">{file.name}</div>
-                    <div className="row-sub">
+                    <div style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{file.name}</div>
+                    <div className="sub">
                       {file.permissions || "—"}
-                      {file.modified ? ` · ${new Date(file.modified * 1000).toLocaleString()}` : ""}
+                      {file.modified ? ` · ${new Date(file.modified * 1000).toLocaleDateString()}` : ""}
                     </div>
                   </>
                 )}
-              </div>
-              {!file.isDir && <div className="file-meta">{formatBytes(file.size)}</div>}
-              <div className="row-actions">
+              </span>
+
+              {!file.isDir && <span className="meta">{formatBytes(file.size)}</span>}
+
+              <span className="trailing">
                 {!file.isDir && (
-                  <button className="ghost" title={t("download")} onClick={() => void download(file)}>
-                    ↓
+                  <button className="quiet" title={t("download")} onClick={() => void download(file)}>
+                    <ArrowDownTrayIcon className="icon" />
                   </button>
                 )}
                 <button
-                  className="ghost"
+                  className="quiet"
                   title={t("rename")}
                   onClick={() => {
                     setRenaming(file);
                     setRenameDraft(file.name);
                   }}
                 >
-                  ✎
+                  <PencilSquareIcon className="icon" />
                 </button>
-                <button className="ghost danger" title={t("delete")} onClick={() => void remove(file)}>
-                  ✕
+                <button className="quiet" title={t("delete")} onClick={() => void remove(file)}>
+                  <TrashIcon className="icon" />
                 </button>
-              </div>
+              </span>
             </div>
           ))}
         </div>

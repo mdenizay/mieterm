@@ -1,4 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  BookmarkIcon,
+  ClockIcon,
+  Cog6ToothIcon,
+  CommandLineIcon,
+  ExclamationTriangleIcon,
+  FolderIcon,
+  LinkIcon,
+  MagnifyingGlassIcon,
+  MegaphoneIcon,
+  PlusIcon,
+  ServerStackIcon,
+  Squares2X2Icon,
+  ViewColumnsIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
 import { CommandPalette, type PaletteAction } from "./components/CommandPalette";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { ForwardsPanel } from "./components/ForwardsPanel";
@@ -10,8 +26,8 @@ import { SftpBrowser } from "./components/SftpBrowser";
 import { SnippetsPanel } from "./components/SnippetsPanel";
 import { TerminalPane, type PaneHandle } from "./components/TerminalPane";
 import { api } from "./lib/api";
+import { encodeText } from "./lib/bytes";
 import { translator } from "./lib/i18n";
-import { findTheme } from "./lib/themes";
 import {
   asError,
   emptyHost,
@@ -74,6 +90,10 @@ export default function App() {
     () => activeTab?.panes.find((pane) => pane.id === activeTab.activePaneId) ?? null,
     [activeTab],
   );
+  const selectedHost = useMemo(
+    () => hosts.find((host) => host.id === selectedHostId) ?? null,
+    [hosts, selectedHostId],
+  );
 
   // ------------------------------------------------------------ bootstrapping
 
@@ -90,9 +110,6 @@ export default function App() {
         setSnippets(loadedSnippets);
       } catch (e) {
         setError(asError(e));
-        // Without settings there is no terminal at all, so a failed load falls back to
-        // the same defaults the Rust side would have produced.
-        setSettings((current) => current);
       }
     })();
   }, []);
@@ -144,9 +161,8 @@ export default function App() {
         current.map((tab) => {
           if (tab.id !== activeTabId) return tab;
           const source = tab.panes.find((pane) => pane.id === tab.activePaneId) ?? tab.panes[0];
-          if (!source) return tab;
           // Four panes is where a split stops being readable at any sane window size.
-          if (tab.panes.length >= 4) return tab;
+          if (!source || tab.panes.length >= 4) return tab;
           const pane = makePane(source.hostId, source.title);
           return { ...tab, layout, panes: [...tab.panes, pane], activePaneId: pane.id };
         }),
@@ -221,7 +237,7 @@ export default function App() {
         // A snippet under broadcast is the whole point of broadcast, so it follows the
         // same rule typing does.
         void api
-          .broadcastSession(broadcastTargets, btoa(String.fromCharCode(...new TextEncoder().encode(text))))
+          .broadcastSession(broadcastTargets, encodeText(text))
           .catch((e) => setError(asError(e)));
       } else {
         handles.current.get(pane.id)?.send(text);
@@ -252,6 +268,10 @@ export default function App() {
     setDrawer("files");
   }, []);
 
+  const toggleDrawer = useCallback((tab: DrawerTab) => {
+    setDrawer((current) => (current === tab ? null : tab));
+  }, []);
+
   // ------------------------------------------------------------ shortcuts
 
   useEffect(() => {
@@ -274,7 +294,7 @@ export default function App() {
       } else if (event.key === "f") {
         event.preventDefault();
         if (activePane) handles.current.get(activePane.id)?.openSearch();
-      } else if (event.key === "," ) {
+      } else if (event.key === ",") {
         event.preventDefault();
         setSettingsOpen(true);
       } else if ((event.key === "=" || event.key === "+") && settings) {
@@ -307,210 +327,297 @@ export default function App() {
       else if (action.id === "split-down") splitActive("col");
       else if (action.id === "tunnels") setDrawer("tunnels");
       else if (action.id === "recordings") setDrawer("recordings");
+      else if (action.id === "snippets") setDrawer("snippets");
     },
     [connect, runSnippet, openTab, splitActive, t],
   );
 
-  if (!settings) return null;
+  if (!settings) return <div className="empty">…</div>;
 
-  const terminalIsDark = findTheme(settings.terminalTheme).dark;
+  const canSplit = Boolean(activeTab) && (activeTab?.panes.length ?? 0) < 4;
 
   return (
     <div className="app">
-      <Sidebar
-        hosts={hosts}
-        selectedId={selectedHostId}
-        connectedIds={connectedHostIds}
-        onSelect={(host) => setSelectedHostId(host.id)}
-        onConnect={connect}
-        onEdit={(host) => setEditingHost(host)}
-        onDuplicate={(host) =>
-          setEditingHost({ ...host, id: "", name: `${hostLabel(host)} copy` })
-        }
-        onDelete={(host) => setDeletingHost(host)}
-        onFiles={openFiles}
-        onAdd={() => setEditingHost(emptyHost())}
-        onLocal={() => openTab(null, t("localTerminal"))}
-        onCopied={(what) => setToast(`${t("copied")}: ${what}`)}
-        t={t}
-      />
+      <div className="chrome">
+        <button className="chrome-button" onClick={() => setEditingHost(emptyHost())}>
+          <ServerStackIcon className="icon-lg" />
+          {t("addServer")}
+        </button>
+        <button
+          className="chrome-button"
+          disabled={!selectedHost}
+          onClick={() => selectedHost && connect(selectedHost)}
+        >
+          <CommandLineIcon className="icon-lg" />
+          {t("connect")}
+        </button>
+        <button className="chrome-button" onClick={() => openTab(null, t("localTerminal"))}>
+          <PlusIcon className="icon-lg" />
+          {t("localTerminal")}
+        </button>
 
-      <main className="main">
-        {error && (
-          <div className="error-banner">
-            <div className="msg">
-              {error.message}
-              {error.detail && <div className="detail">{error.detail}</div>}
-            </div>
-            <button className="ghost" onClick={() => setError(null)}>✕</button>
+        <div className="chrome-divider" />
+
+        <button className="chrome-button" disabled={!canSplit} onClick={() => splitActive("row")}>
+          <ViewColumnsIcon className="icon-lg" />
+          {t("splitRight")}
+        </button>
+        <button className="chrome-button" disabled={!canSplit} onClick={() => splitActive("col")}>
+          <Squares2X2Icon className="icon-lg" />
+          {t("splitDown")}
+        </button>
+        <button
+          className={`chrome-button${broadcast ? " on" : ""}`}
+          title={t("broadcastOn")}
+          disabled={(activeTab?.panes.length ?? 0) < 2}
+          onClick={() => setBroadcast((on) => !on)}
+        >
+          <MegaphoneIcon className="icon-lg" />
+          {t("broadcast")}
+        </button>
+
+        <div className="chrome-divider" />
+
+        <button
+          className={`chrome-button${drawer === "files" ? " on" : ""}`}
+          disabled={!selectedHost}
+          onClick={() => (drawer === "files" ? setDrawer(null) : selectedHost && openFiles(selectedHost))}
+        >
+          <FolderIcon className="icon-lg" />
+          {t("files")}
+        </button>
+        <button
+          className={`chrome-button${drawer === "tunnels" ? " on" : ""}`}
+          onClick={() => toggleDrawer("tunnels")}
+        >
+          <LinkIcon className="icon-lg" />
+          {t("tunnels")}
+        </button>
+        <button
+          className={`chrome-button${drawer === "snippets" ? " on" : ""}`}
+          onClick={() => toggleDrawer("snippets")}
+        >
+          <BookmarkIcon className="icon-lg" />
+          {t("snippets")}
+        </button>
+        <button
+          className={`chrome-button${drawer === "recordings" ? " on" : ""}`}
+          onClick={() => toggleDrawer("recordings")}
+        >
+          <ClockIcon className="icon-lg" />
+          {t("recordings")}
+        </button>
+
+        <div className="spacer" />
+
+        <button className="chrome-button" onClick={() => setPaletteOpen(true)}>
+          <MagnifyingGlassIcon className="icon-lg" />
+          {t("commandPalette")}
+        </button>
+        <button className="chrome-button" onClick={() => setSettingsOpen(true)}>
+          <Cog6ToothIcon className="icon-lg" />
+          {t("settings")}
+        </button>
+      </div>
+
+      {error && (
+        <div className="error-banner">
+          <ExclamationTriangleIcon className="icon" />
+          <div style={{ flex: 1 }}>
+            {error.message}
+            {error.detail && <div className="detail">{error.detail}</div>}
           </div>
-        )}
-
-        <div className="tabbar">
-          {tabs.map((tab) => {
-            const first = tab.panes[0];
-            const allDead = tab.panes.every((pane) => pane.dead);
-            const host = first?.hostId ? hosts.find((h) => h.id === first.hostId) : undefined;
-            return (
-              <div
-                key={tab.id}
-                className={`tab${tab.id === activeTabId ? " active" : ""}`}
-                onClick={() => setActiveTabId(tab.id)}
-              >
-                <span
-                  className={`tab-dot${allDead ? " dead" : ""}`}
-                  style={host ? { background: `var(--dot-${host.color})` } : undefined}
-                />
-                <span className="tab-title">
-                  {first?.title ?? "—"}
-                  {tab.panes.length > 1 ? ` (${tab.panes.length})` : ""}
-                </span>
-                <button
-                  className="ghost tab-close"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setTabs((current) => current.filter((candidate) => candidate.id !== tab.id));
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            );
-          })}
-
-          <div className="tabbar-actions">
-            <button className="ghost" title={t("newTab")} onClick={() => openTab(null, t("localTerminal"))}>
-              ＋
-            </button>
-            <button className="ghost" title={t("settings")} onClick={() => setSettingsOpen(true)}>
-              ⚙
-            </button>
-          </div>
+          <button className="quiet" onClick={() => setError(null)}>
+            <XMarkIcon className="icon" />
+          </button>
         </div>
+      )}
 
-        {!activeTab ? (
-          <div className="empty" style={{ flex: 1, display: "grid", placeContent: "center" }}>
-            <strong>Mieterm</strong>
-            {t("noServersHint")}
+      <div className="body">
+        <Sidebar
+          hosts={hosts}
+          selectedId={selectedHostId}
+          connectedIds={connectedHostIds}
+          onSelect={(host) => setSelectedHostId(host.id)}
+          onConnect={connect}
+          onEdit={(host) => setEditingHost(host)}
+          onDuplicate={(host) => setEditingHost({ ...host, id: "", name: `${hostLabel(host)} copy` })}
+          onDelete={(host) => setDeletingHost(host)}
+          onFiles={openFiles}
+          onAdd={() => setEditingHost(emptyHost())}
+          onCopied={(what) => setToast(`${t("copied")}: ${what}`)}
+          t={t}
+        />
+
+        <main className="main">
+          {/* Hidden entirely when nothing is open, rather than left as an empty strip. */}
+          {tabs.length > 0 && (
+          <div className="tabs">
+            {tabs.map((tab) => {
+              const first = tab.panes[0];
+              const allDead = tab.panes.every((pane) => pane.dead);
+              const host = first?.hostId ? hosts.find((h) => h.id === first.hostId) : undefined;
+              return (
+                <button
+                  key={tab.id}
+                  className={`tab${tab.id === activeTabId ? " active" : ""}`}
+                  onClick={() => setActiveTabId(tab.id)}
+                >
+                  {host ? (
+                    <ServerStackIcon
+                      className="icon"
+                      style={{ color: allDead ? "var(--text-faint)" : `var(--dot-${host.color})` }}
+                    />
+                  ) : (
+                    <CommandLineIcon
+                      className="icon"
+                      style={{ color: allDead ? "var(--text-faint)" : "var(--text-muted)" }}
+                    />
+                  )}
+                  <span className="title">
+                    {first?.title ?? "—"}
+                    {tab.panes.length > 1 ? ` (${tab.panes.length})` : ""}
+                  </span>
+                  <span
+                    className="close"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTabs((current) => current.filter((candidate) => candidate.id !== tab.id));
+                    }}
+                  >
+                    <XMarkIcon className="icon" style={{ width: 13, height: 13 }} />
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        ) : (
-          <div className={`panes${activeTab.layout === "col" ? " col" : ""}`}>
-            {activeTab.panes.map((pane) => (
-              <div
-                key={pane.id}
-                className={`pane${pane.id === activeTab.activePaneId ? " focused" : ""}`}
-              >
-                {activeTab.panes.length > 1 && (
-                  <div className="pane-head">
-                    <span>{pane.title}</span>
-                    <span className="spacer" />
-                    <button className="ghost" onClick={() => closePane(activeTab.id, pane.id)}>
-                      ✕
-                    </button>
-                  </div>
-                )}
-                <TerminalPane
-                  key={pane.sessionId}
-                  sessionId={pane.sessionId}
-                  hostId={pane.hostId}
-                  startupCommand={
-                    hosts.find((h) => h.id === pane.hostId)?.startupCommand ?? ""
-                  }
-                  settings={settings}
-                  focused={pane.id === activeTab.activePaneId}
-                  broadcastTargets={broadcastTargets}
-                  onFocus={() =>
-                    setTabs((current) =>
-                      current.map((tab) =>
-                        tab.id === activeTab.id ? { ...tab, activePaneId: pane.id } : tab,
-                      ),
-                    )
-                  }
-                  onExit={() => patchPane(pane.id, { dead: true })}
-                  onReconnect={() => patchPane(pane.id, { sessionId: uid(), dead: false })}
-                  onError={(e) => setError(e)}
-                  onTitle={(title) => patchPane(pane.id, { title })}
-                  registerHandle={(handle) => {
-                    if (handle) handles.current.set(pane.id, handle);
-                    else handles.current.delete(pane.id);
-                  }}
+          )}
+
+          {!activeTab ? (
+            <div className="empty">
+              <CommandLineIcon className="icon-xl" />
+              <div>Mieterm</div>
+              <div className="hint">{t("noServersHint")}</div>
+              <button onClick={() => openTab(null, t("localTerminal"))}>
+                <CommandLineIcon className="icon" />
+                {t("localTerminal")}
+              </button>
+            </div>
+          ) : (
+            <div className={`panes${activeTab.layout === "col" ? " col" : ""}`}>
+              {activeTab.panes.map((pane) => (
+                <div
+                  key={pane.id}
+                  className={`pane${pane.id === activeTab.activePaneId ? " focused" : ""}`}
+                >
+                  {activeTab.panes.length > 1 && (
+                    <div className="pane-toolbar">
+                      <span>{pane.title}</span>
+                      <div className="spacer" />
+                      <button
+                        className="quiet"
+                        title={t("closePane")}
+                        onClick={() => closePane(activeTab.id, pane.id)}
+                      >
+                        <XMarkIcon className="icon" />
+                      </button>
+                    </div>
+                  )}
+                  <TerminalPane
+                    key={pane.sessionId}
+                    sessionId={pane.sessionId}
+                    hostId={pane.hostId}
+                    startupCommand={hosts.find((h) => h.id === pane.hostId)?.startupCommand ?? ""}
+                    settings={settings}
+                    focused={pane.id === activeTab.activePaneId}
+                    broadcastTargets={broadcastTargets}
+                    onFocus={() =>
+                      setTabs((current) =>
+                        current.map((tab) =>
+                          tab.id === activeTab.id ? { ...tab, activePaneId: pane.id } : tab,
+                        ),
+                      )
+                    }
+                    onExit={() => patchPane(pane.id, { dead: true })}
+                    onReconnect={() => patchPane(pane.id, { sessionId: uid(), dead: false })}
+                    onError={setError}
+                    onTitle={(title) => patchPane(pane.id, { title })}
+                    registerHandle={(handle) => {
+                      if (handle) handles.current.set(pane.id, handle);
+                      else handles.current.delete(pane.id);
+                    }}
+                    t={t}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="status-bar">
+            <span className="meta">{settings.terminalTheme}</span>
+            {activePane && <span className="meta">{activePane.title}</span>}
+            {broadcast && (
+              <span className="meta" style={{ color: "var(--accent)" }}>
+                <MegaphoneIcon className="icon" />
+                {t("broadcastOn")}
+              </span>
+            )}
+            <div className="spacer" />
+            {tabs.length > 0 && (
+              <span className="meta">
+                {tabs.length} {t("tabsLabel")}
+              </span>
+            )}
+          </div>
+        </main>
+
+        {drawer && (
+          <aside className="drawer">
+            <div className="drawer-tabs">
+              {(["files", "tunnels", "snippets", "recordings"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  className={`drawer-tab${drawer === tab ? " active" : ""}`}
+                  onClick={() => setDrawer(tab)}
+                >
+                  {t(tab)}
+                </button>
+              ))}
+              <div className="spacer" />
+              <button className="quiet" onClick={() => setDrawer(null)}>
+                <XMarkIcon className="icon" />
+              </button>
+            </div>
+
+            {drawer === "files" &&
+              (drawerHost ? (
+                <SftpBrowser
+                  key={drawerHost.id}
+                  host={drawerHost}
+                  onError={setError}
+                  onBusy={setToast}
                   t={t}
                 />
-              </div>
-            ))}
-          </div>
+              ) : (
+                <div className="empty">
+                  <FolderIcon className="icon-xl" />
+                  <div>{t("files")}</div>
+                  <div className="hint">{t("filesHint")}</div>
+                </div>
+              ))}
+
+            {drawer === "tunnels" && <ForwardsPanel hosts={hosts} onError={setError} t={t} />}
+
+            {drawer === "snippets" && (
+              <SnippetsPanel onRun={activePane ? runSnippet : null} onError={setError} t={t} />
+            )}
+
+            {drawer === "recordings" && (
+              <RecordingsPanel enabled={settings.recordSessions} onError={setError} t={t} />
+            )}
+          </aside>
         )}
-
-        <div className="statusbar">
-          <span className="pill">{terminalIsDark ? "◐" : "◑"} {settings.terminalTheme}</span>
-          {activePane && <span>{activePane.title}</span>}
-          <span className="spacer" />
-          <button
-            className={broadcast ? "on" : ""}
-            title={t("broadcastOn")}
-            disabled={(activeTab?.panes.length ?? 0) < 2}
-            onClick={() => setBroadcast((on) => !on)}
-          >
-            {t("broadcast")}
-          </button>
-          <button onClick={() => splitActive("row")} disabled={!activeTab}>{t("splitRight")}</button>
-          <button onClick={() => splitActive("col")} disabled={!activeTab}>{t("splitDown")}</button>
-          <button onClick={() => setDrawer(drawer === "snippets" ? null : "snippets")}>
-            {t("snippets")}
-          </button>
-          <button onClick={() => setDrawer(drawer === "tunnels" ? null : "tunnels")}>
-            {t("tunnels")}
-          </button>
-        </div>
-      </main>
-
-      {drawer && (
-        <aside className="drawer">
-          <div className="drawer-head">
-            {(["files", "tunnels", "snippets", "recordings"] as const).map((tab) => (
-              <button
-                key={tab}
-                className={`drawer-tab${drawer === tab ? " active" : ""}`}
-                onClick={() => setDrawer(tab)}
-              >
-                {t(tab === "files" ? "files" : tab)}
-              </button>
-            ))}
-            <span className="spacer" />
-            <button className="ghost" onClick={() => setDrawer(null)}>✕</button>
-          </div>
-
-          {drawer === "files" &&
-            (drawerHost ? (
-              <SftpBrowser
-                key={drawerHost.id}
-                host={drawerHost}
-                onError={setError}
-                onBusy={setToast}
-                t={t}
-              />
-            ) : (
-              <div className="empty">
-                <strong>{t("files")}</strong>
-                {t("noServersHint")}
-              </div>
-            ))}
-
-          {drawer === "tunnels" && <ForwardsPanel hosts={hosts} onError={setError} t={t} />}
-
-          {drawer === "snippets" && (
-            <SnippetsPanel
-              onRun={activePane ? runSnippet : null}
-              onError={setError}
-              t={t}
-            />
-          )}
-
-          {drawer === "recordings" && (
-            <RecordingsPanel enabled={settings.recordSessions} onError={setError} t={t} />
-          )}
-        </aside>
-      )}
+      </div>
 
       {editingHost && (
         <HostDialog
@@ -548,13 +655,14 @@ export default function App() {
           hosts={hosts}
           snippets={snippets}
           commands={[
-            { id: "local", label: t("localTerminal") },
-            { id: "new-server", label: t("addServer") },
-            { id: "split-right", label: t("splitRight") },
-            { id: "split-down", label: t("splitDown") },
-            { id: "tunnels", label: t("tunnels") },
-            { id: "recordings", label: t("recordings") },
-            { id: "settings", label: t("settings") },
+            { id: "local", label: t("localTerminal"), icon: CommandLineIcon },
+            { id: "new-server", label: t("addServer"), icon: ServerStackIcon },
+            { id: "split-right", label: t("splitRight"), icon: ViewColumnsIcon },
+            { id: "split-down", label: t("splitDown"), icon: Squares2X2Icon },
+            { id: "tunnels", label: t("tunnels"), icon: LinkIcon },
+            { id: "snippets", label: t("snippets"), icon: BookmarkIcon },
+            { id: "recordings", label: t("recordings"), icon: ClockIcon },
+            { id: "settings", label: t("settings"), icon: Cog6ToothIcon },
           ]}
           canRunSnippets={activePane !== null}
           onPick={onPalettePick}

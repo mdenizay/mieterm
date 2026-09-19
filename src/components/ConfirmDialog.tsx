@@ -1,3 +1,4 @@
+import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import type { Translate } from "../lib/i18n";
 
 interface Props {
@@ -10,20 +11,27 @@ interface Props {
   t: Translate;
 }
 
-export function ConfirmDialog({ title, hint, confirmLabel, destructive, onConfirm, onCancel, t }: Props) {
+export function ConfirmDialog({
+  title,
+  hint,
+  confirmLabel,
+  destructive,
+  onConfirm,
+  onCancel,
+  t,
+}: Props) {
   return (
     <div className="scrim" onMouseDown={onCancel}>
-      <div className="dialog" style={{ maxWidth: 380 }} onMouseDown={(e) => e.stopPropagation()}>
-        <div className="dialog-head">{title}</div>
-        {hint && <div className="dialog-body" style={{ color: "var(--text-muted)" }}>{hint}</div>}
-        <div className="dialog-foot">
+      <div className="dialog" style={{ width: 400 }} onMouseDown={(e) => e.stopPropagation()}>
+        <h2>
+          {destructive && <ExclamationTriangleIcon className="icon" style={{ color: "var(--danger)" }} />}
+          {title}
+        </h2>
+        {hint && <div className="dialog-body"><div className="hint">{hint}</div></div>}
+        <div className="dialog-footer">
+          <div className="spacer" />
           <button onClick={onCancel}>{t("cancel")}</button>
-          <button
-            className={destructive ? "primary" : "primary"}
-            style={destructive ? { background: "var(--danger)", borderColor: "var(--danger)", color: "#fff" } : undefined}
-            onClick={onConfirm}
-            autoFocus
-          >
+          <button className={destructive ? "danger" : "primary"} onClick={onConfirm} autoFocus>
             {confirmLabel}
           </button>
         </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronDownIcon, ChevronUpIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -266,11 +267,11 @@ export function TerminalPane({
   return (
     <div className="pane-body" onMouseDown={onFocus}>
       {searchOpen && (
-        <div className="pane-search">
+        <div className="find-bar">
           <input
             autoFocus
             value={query}
-            placeholder="Find"
+            placeholder={t("find")}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") runSearch(e.shiftKey ? "previous" : "next");
@@ -281,16 +282,20 @@ export function TerminalPane({
               }
             }}
           />
-          <button className="ghost" onClick={() => runSearch("previous")}>↑</button>
-          <button className="ghost" onClick={() => runSearch("next")}>↓</button>
+          <button className="quiet" onClick={() => runSearch("previous")}>
+            <ChevronUpIcon className="icon" />
+          </button>
+          <button className="quiet" onClick={() => runSearch("next")}>
+            <ChevronDownIcon className="icon" />
+          </button>
           <button
-            className="ghost"
+            className="quiet"
             onClick={() => {
               setSearchOpen(false);
               termRef.current?.focus();
             }}
           >
-            ✕
+            <XMarkIcon className="icon" />
           </button>
         </div>
       )}

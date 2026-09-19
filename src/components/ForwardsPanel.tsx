@@ -1,4 +1,12 @@
 import { useEffect, useState } from "react";
+import {
+  LinkIcon,
+  PencilSquareIcon,
+  PlayIcon,
+  PlusIcon,
+  StopIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
 import { listen } from "@tauri-apps/api/event";
 import { api } from "../lib/api";
 import {
@@ -62,16 +70,6 @@ export function ForwardsPanel({ hosts, onError, t }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const save = async (forward: PortForward) => {
-    try {
-      await api.saveForward(forward);
-      setEditing(null);
-      await reload();
-    } catch (e) {
-      onError(asError(e));
-    }
-  };
-
   const describe = (forward: PortForward): string => {
     const host = hosts.find((h) => h.id === forward.hostId);
     const via = host ? hostLabel(host) : "?";
@@ -83,16 +81,30 @@ export function ForwardsPanel({ hosts, onError, t }: Props) {
   };
 
   if (editing) {
-    return <ForwardEditor forward={editing} hosts={hosts} onSave={save} onCancel={() => setEditing(null)} t={t} />;
+    return (
+      <ForwardEditor
+        forward={editing}
+        hosts={hosts}
+        onSave={async (forward) => {
+          try {
+            await api.saveForward(forward);
+            setEditing(null);
+            await reload();
+          } catch (e) {
+            onError(asError(e));
+          }
+        }}
+        onCancel={() => setEditing(null)}
+        t={t}
+      />
+    );
   }
 
   return (
     <>
-      <div className="drawer-bar">
-        <button
-          onClick={() => setEditing(emptyForward(hosts[0]?.id ?? ""))}
-          disabled={hosts.length === 0}
-        >
+      <div className="drawer-toolbar">
+        <button onClick={() => setEditing(emptyForward(hosts[0]?.id ?? ""))} disabled={hosts.length === 0}>
+          <PlusIcon className="icon" />
           {t("newTunnel")}
         </button>
       </div>
@@ -100,46 +112,61 @@ export function ForwardsPanel({ hosts, onError, t }: Props) {
       <div className="drawer-body">
         {forwards.length === 0 && (
           <div className="empty">
-            <strong>{t("tunnels")}</strong>
-            {t("newTunnel")}
+            <LinkIcon className="icon-xl" />
+            <div>{t("tunnels")}</div>
+            <div className="hint">{t("tunnelsHint")}</div>
           </div>
         )}
 
-        <div className="rows">
+        <div className="list">
           {forwards.map((forward) => {
             const status = statuses[forward.id]?.state ?? "stopped";
             const message = statuses[forward.id]?.message;
             const live = status === "running" || status === "starting";
             return (
-              <div key={forward.id} className="row">
-                <div className="row-main">
-                  <div className="row-title">
-                    {forward.name || describe(forward)}{" "}
-                    <span className={`state ${status}`}>{t(status)}</span>
+              <div key={forward.id} className="list-item">
+                <LinkIcon
+                  className="icon"
+                  style={{ color: live ? "var(--success)" : "var(--text-faint)" }}
+                />
+                <span className="label">
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {forward.name || describe(forward)}
+                    </span>
+                    <span className={`badge ${status}`}>{t(status)}</span>
                   </div>
-                  <div className="row-sub">{describe(forward)}</div>
-                  {status === "failed" && message && (
-                    <div className="row-sub" style={{ color: "var(--danger)" }}>{message}</div>
-                  )}
-                </div>
-                <div className="row-actions">
+                  <div className="sub">{describe(forward)}</div>
+                  {status === "failed" && message && <div className="bad">{message}</div>}
+                </span>
+                <span className="trailing">
                   <button
+                    className="quiet"
+                    title={live ? t("stop") : t("start")}
                     onClick={() =>
                       void (live ? api.stopForward(forward.id) : api.startForward(forward.id)).catch(
                         (e) => onError(asError(e)),
                       )
                     }
                   >
-                    {live ? t("stop") : t("start")}
+                    {live ? <StopIcon className="icon" /> : <PlayIcon className="icon" />}
                   </button>
-                  <button className="ghost" onClick={() => setEditing(forward)}>✎</button>
+                  <button className="quiet" title={t("edit")} onClick={() => setEditing(forward)}>
+                    <PencilSquareIcon className="icon" />
+                  </button>
                   <button
-                    className="ghost danger"
-                    onClick={() => void api.deleteForward(forward.id).then(reload).catch((e) => onError(asError(e)))}
+                    className="quiet"
+                    title={t("delete")}
+                    onClick={() =>
+                      void api
+                        .deleteForward(forward.id)
+                        .then(reload)
+                        .catch((e) => onError(asError(e)))
+                    }
                   >
-                    ✕
+                    <TrashIcon className="icon" />
                   </button>
-                </div>
+                </span>
               </div>
             );
           })}
@@ -167,7 +194,7 @@ function ForwardEditor({
     setForward((current) => ({ ...current, ...changes }));
 
   return (
-    <div className="drawer-body" style={{ padding: 12 }}>
+    <div className="drawer-form">
       <div className="field">
         <label>{t("name")}</label>
         <input value={forward.name} onChange={(e) => patch({ name: e.target.value })} />
@@ -191,8 +218,8 @@ function ForwardEditor({
         </select>
       </div>
 
-      <div className="field field-row">
-        <div>
+      <div className="row">
+        <div className="field">
           <label>{t("localPort")}</label>
           <input
             type="number"
@@ -202,14 +229,11 @@ function ForwardEditor({
         </div>
         {forward.kind !== "dynamic" && (
           <>
-            <div>
+            <div className="field">
               <label>{t("destination")}</label>
-              <input
-                value={forward.remoteHost}
-                onChange={(e) => patch({ remoteHost: e.target.value })}
-              />
+              <input value={forward.remoteHost} onChange={(e) => patch({ remoteHost: e.target.value })} />
             </div>
-            <div>
+            <div className="field">
               <label>{t("destinationPort")}</label>
               <input
                 type="number"
@@ -221,18 +245,24 @@ function ForwardEditor({
         )}
       </div>
 
-      <label className="checkbox">
+      <label className="check">
         <input
           type="checkbox"
           checked={forward.autoStart}
           onChange={(e) => patch({ autoStart: e.target.checked })}
         />
-        <span>{t("autoStart")}</span>
+        {t("autoStart")}
       </label>
 
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
-        <button onClick={onCancel}>{t("cancel")}</button>
-        <button className="primary" onClick={() => onSave(forward)} disabled={!forward.hostId}>
+      <div className="row">
+        <div className="spacer" />
+        <button style={{ flex: "0 0 auto" }} onClick={onCancel}>{t("cancel")}</button>
+        <button
+          className="primary"
+          style={{ flex: "0 0 auto" }}
+          onClick={() => onSave(forward)}
+          disabled={!forward.hostId}
+        >
           {t("save")}
         </button>
       </div>

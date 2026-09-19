@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { BookmarkIcon, PencilSquareIcon, PlayIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { api } from "../lib/api";
 import { asError, type AppError, type Snippet } from "../lib/types";
 import type { Translate } from "../lib/i18n";
 
 interface Props {
-  /** Runs the snippet in the focused pane; absent when nothing is connected. */
+  /** Runs the snippet in the focused pane; null when nothing is connected. */
   onRun: ((snippet: Snippet) => void) | null;
   onError: (error: AppError) => void;
   t: Translate;
@@ -26,7 +27,7 @@ export function SnippetsPanel({ onRun, onError, t }: Props) {
 
   if (editing) {
     return (
-      <div className="drawer-body" style={{ padding: 12 }}>
+      <div className="drawer-form">
         <div className="field">
           <label>{t("name")}</label>
           <input
@@ -55,18 +56,20 @@ export function SnippetsPanel({ onRun, onError, t }: Props) {
             }
           />
         </div>
-        <label className="checkbox">
+        <label className="check">
           <input
             type="checkbox"
             checked={editing.noNewline}
             onChange={(e) => setEditing({ ...editing, noNewline: e.target.checked })}
           />
-          <span>{t("sendWithoutNewline")}</span>
+          {t("sendWithoutNewline")}
         </label>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
-          <button onClick={() => setEditing(null)}>{t("cancel")}</button>
+        <div className="row">
+          <div className="spacer" />
+          <button style={{ flex: "0 0 auto" }} onClick={() => setEditing(null)}>{t("cancel")}</button>
           <button
             className="primary"
+            style={{ flex: "0 0 auto" }}
             disabled={!editing.command.trim()}
             onClick={() =>
               void api
@@ -87,31 +90,44 @@ export function SnippetsPanel({ onRun, onError, t }: Props) {
 
   return (
     <>
-      <div className="drawer-bar">
-        <button onClick={() => setEditing(emptySnippet())}>{t("newSnippet")}</button>
+      <div className="drawer-toolbar">
+        <button onClick={() => setEditing(emptySnippet())}>
+          <PlusIcon className="icon" />
+          {t("newSnippet")}
+        </button>
       </div>
       <div className="drawer-body">
-        <div className="rows">
+        {snippets.length === 0 && (
+          <div className="empty">
+            <BookmarkIcon className="icon-xl" />
+            <div>{t("snippets")}</div>
+          </div>
+        )}
+        <div className="list">
           {snippets.map((snippet) => (
-            <div key={snippet.id} className="row">
-              <div className="row-main">
-                <div className="row-title">{snippet.name}</div>
-                <div className="row-sub">{snippet.command}</div>
-              </div>
-              <div className="row-actions">
-                <button disabled={!onRun} onClick={() => onRun?.(snippet)}>
-                  {t("runSnippet")}
+            <div key={snippet.id} className="list-item">
+              <BookmarkIcon className="icon" style={{ color: "var(--text-faint)" }} />
+              <span className="label">
+                <div style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{snippet.name}</div>
+                <div className="sub">{snippet.command}</div>
+              </span>
+              <span className="trailing">
+                <button className="quiet" title={t("runSnippet")} disabled={!onRun} onClick={() => onRun?.(snippet)}>
+                  <PlayIcon className="icon" />
                 </button>
-                <button className="ghost" onClick={() => setEditing(snippet)}>✎</button>
+                <button className="quiet" title={t("edit")} onClick={() => setEditing(snippet)}>
+                  <PencilSquareIcon className="icon" />
+                </button>
                 <button
-                  className="ghost danger"
+                  className="quiet"
+                  title={t("delete")}
                   onClick={() =>
                     void api.deleteSnippet(snippet.id).then(reload).catch((e) => onError(asError(e)))
                   }
                 >
-                  ✕
+                  <TrashIcon className="icon" />
                 </button>
-              </div>
+              </span>
             </div>
           ))}
         </div>

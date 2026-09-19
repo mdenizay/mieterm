@@ -144,9 +144,10 @@ export function hostSubtitle(host: Host): string {
   return `${user}${host.hostname}${host.port === 22 ? "" : `:${host.port}`}`;
 }
 
-export function hostInitials(host: Host): string {
-  const base = hostLabel(host).trim();
-  const words = base.split(/\s+/).filter(Boolean);
-  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
-  return base.slice(0, 2).toUpperCase();
+/** The command you would type to reach this server, for the one-click copy. */
+export function sshCommand(host: Host): string {
+  const port = host.port === 22 ? "" : ` -p ${host.port}`;
+  const key = host.auth === "key" && host.keyPath ? ` -i ${host.keyPath}` : "";
+  const user = host.username ? `${host.username}@` : "";
+  return `ssh${port}${key} ${user}${host.hostname}`;
 }

@@ -1,4 +1,10 @@
 import { useEffect, useState } from "react";
+import {
+  ArrowLeftIcon,
+  ClockIcon,
+  MagnifyingGlassIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
 import { api } from "../lib/api";
 import { asError, type AppError, type Recording, type RecordingMatch } from "../lib/types";
 import type { Translate } from "../lib/i18n";
@@ -13,7 +19,7 @@ export function RecordingsPanel({ enabled, onError, t }: Props) {
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<RecordingMatch[] | null>(null);
-  const [viewing, setViewing] = useState<{ id: string; text: string } | null>(null);
+  const [viewing, setViewing] = useState<string | null>(null);
 
   const reload = () => {
     void api.listRecordings().then(setRecordings).catch((e) => onError(asError(e)));
@@ -21,8 +27,8 @@ export function RecordingsPanel({ enabled, onError, t }: Props) {
 
   useEffect(reload, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Search is debounced because it reads every log on disk; typing a word should not
-  // start a full scan per keystroke.
+  // Debounced, because a search reads every log on disk; typing a word should not start a
+  // full scan per keystroke.
   useEffect(() => {
     const needle = query.trim();
     if (!needle) {
@@ -35,14 +41,24 @@ export function RecordingsPanel({ enabled, onError, t }: Props) {
     return () => window.clearTimeout(timer);
   }, [query, onError]);
 
-  if (viewing) {
+  const openRecording = (id: string) => {
+    void api
+      .readRecording(id)
+      .then(setViewing)
+      .catch((e) => onError(asError(e)));
+  };
+
+  if (viewing !== null) {
     return (
       <>
-        <div className="drawer-bar">
-          <button onClick={() => setViewing(null)}>← {t("recordings")}</button>
+        <div className="drawer-toolbar">
+          <button onClick={() => setViewing(null)}>
+            <ArrowLeftIcon className="icon" />
+            {t("recordings")}
+          </button>
         </div>
         <div className="drawer-body">
-          <pre className="log">{viewing.text}</pre>
+          <pre className="log">{viewing}</pre>
         </div>
       </>
     );
@@ -50,78 +66,79 @@ export function RecordingsPanel({ enabled, onError, t }: Props) {
 
   return (
     <>
-      <div className="drawer-bar">
-        <input
-          value={query}
-          placeholder={t("searchRecordings")}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+      <div className="drawer-toolbar">
+        <div style={{ position: "relative", display: "flex", alignItems: "center", flex: 1 }}>
+          <MagnifyingGlassIcon
+            className="icon"
+            style={{ position: "absolute", left: 6, color: "var(--text-faint)" }}
+          />
+          <input
+            value={query}
+            placeholder={t("searchRecordings")}
+            style={{ paddingLeft: 26 }}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
       </div>
 
       <div className="drawer-body">
-        {!enabled && recordings.length === 0 && (
+        {recordings.length === 0 && matches === null && (
           <div className="empty">
-            <strong>{t("noRecordings")}</strong>
-            {t("recordingsHint")}
+            <ClockIcon className="icon-xl" />
+            <div>{t("noRecordings")}</div>
+            {!enabled && <div className="hint">{t("recordingsHint")}</div>}
           </div>
         )}
 
         {matches !== null ? (
-          <div className="rows">
-            <div className="group-label">
+          <div className="list">
+            <div className="group-title">
               {matches.length} {t("matches")}
             </div>
             {matches.map((match, index) => (
               <div
                 key={`${match.id}:${match.lineNumber}:${index}`}
-                className="row clickable"
-                onClick={() =>
-                  void api
-                    .readRecording(match.id)
-                    .then((text) => setViewing({ id: match.id, text }))
-                    .catch((e) => onError(asError(e)))
-                }
+                className="list-item"
+                onClick={() => openRecording(match.id)}
               >
-                <div className="row-main">
-                  <div className="row-sub" style={{ color: "var(--text)" }}>{match.line}</div>
-                  <div className="row-sub">
+                <span className="label">
+                  <div className="sub" style={{ color: "var(--text)" }}>{match.line}</div>
+                  <div className="sub">
                     {match.title} · {match.lineNumber}
                   </div>
-                </div>
+                </span>
               </div>
             ))}
           </div>
         ) : (
-          <div className="rows">
+          <div className="list">
             {recordings.map((recording) => (
-              <div
-                key={recording.id}
-                className="row clickable"
-                onClick={() =>
-                  void api
-                    .readRecording(recording.id)
-                    .then((text) => setViewing({ id: recording.id, text }))
-                    .catch((e) => onError(asError(e)))
-                }
-              >
-                <div className="row-main">
-                  <div className="row-title">{recording.title}</div>
-                  <div className="row-sub">
-                    {recording.startedAt ? new Date(recording.startedAt).toLocaleString() : recording.id}
+              <div key={recording.id} className="list-item" onClick={() => openRecording(recording.id)}>
+                <ClockIcon className="icon" style={{ color: "var(--text-faint)" }} />
+                <span className="label">
+                  <div style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{recording.title}</div>
+                  <div className="sub">
+                    {recording.startedAt
+                      ? new Date(recording.startedAt).toLocaleString()
+                      : recording.id}
                   </div>
-                </div>
-                <div className="file-meta">{Math.max(1, Math.round(recording.bytes / 1024))} KB</div>
-                <div className="row-actions">
+                </span>
+                <span className="meta">{Math.max(1, Math.round(recording.bytes / 1024))} KB</span>
+                <span className="trailing">
                   <button
-                    className="ghost danger"
+                    className="quiet"
+                    title={t("delete")}
                     onClick={(e) => {
                       e.stopPropagation();
-                      void api.deleteRecording(recording.id).then(reload).catch((err) => onError(asError(err)));
+                      void api
+                        .deleteRecording(recording.id)
+                        .then(reload)
+                        .catch((err) => onError(asError(err)));
                     }}
                   >
-                    ✕
+                    <TrashIcon className="icon" />
                   </button>
-                </div>
+                </span>
               </div>
             ))}
           </div>

@@ -1,12 +1,26 @@
 import { useMemo, useState } from "react";
+import {
+  BoltIcon,
+  ClipboardDocumentIcon,
+  CommandLineIcon,
+  DocumentDuplicateIcon,
+  FolderIcon,
+  KeyIcon,
+  LockClosedIcon,
+  MagnifyingGlassIcon,
+  PencilSquareIcon,
+  ServerStackIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { hostInitials, hostLabel, hostSubtitle, type Host } from "../lib/types";
+import { ContextMenu, type MenuItem } from "./ContextMenu";
+import { hostLabel, hostSubtitle, sshCommand, type Host } from "../lib/types";
 import type { Translate } from "../lib/i18n";
 
 interface Props {
   hosts: Host[];
   selectedId: string | null;
-  /** Host ids that have at least one live pane, for the sidebar's dot. */
+  /** Host ids with at least one live pane, for the status dot. */
   connectedIds: Set<string>;
   onSelect: (host: Host) => void;
   onConnect: (host: Host) => void;
@@ -15,7 +29,6 @@ interface Props {
   onDelete: (host: Host) => void;
   onFiles: (host: Host) => void;
   onAdd: () => void;
-  onLocal: () => void;
   onCopied: (what: string) => void;
   t: Translate;
 }
@@ -31,15 +44,14 @@ export function Sidebar({
   onDelete,
   onFiles,
   onAdd,
-  onLocal,
   onCopied,
   t,
 }: Props) {
-  const [query, setQuery] = useState("");
-  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
+  const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
 
   const groups = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = filter.trim().toLowerCase();
     const matching = needle
       ? hosts.filter((host) =>
           [host.name, host.hostname, host.username, ...host.tags]
@@ -63,185 +75,135 @@ export function Sidebar({
       if (!b) return -1;
       return a.localeCompare(b);
     });
-  }, [hosts, query]);
+  }, [hosts, filter]);
 
   const copy = async (text: string, label: string) => {
     await writeText(text);
     onCopied(label);
-    setMenuFor(null);
   };
+
+  const hostMenu = (host: Host): MenuItem[] => [
+    { label: t("connect"), icon: BoltIcon, onSelect: () => onConnect(host) },
+    { label: t("files"), icon: FolderIcon, onSelect: () => onFiles(host) },
+    {
+      label: t("copyHost"),
+      icon: ClipboardDocumentIcon,
+      separatorBefore: true,
+      onSelect: () => void copy(host.hostname, t("copyHost")),
+    },
+    {
+      label: t("copyUserHost"),
+      icon: ClipboardDocumentIcon,
+      onSelect: () =>
+        void copy(`${host.username ? `${host.username}@` : ""}${host.hostname}`, t("copyUserHost")),
+    },
+    {
+      label: t("copySshCommand"),
+      icon: CommandLineIcon,
+      onSelect: () => void copy(sshCommand(host), t("copySshCommand")),
+    },
+    {
+      label: t("edit"),
+      icon: PencilSquareIcon,
+      separatorBefore: true,
+      onSelect: () => onEdit(host),
+    },
+    { label: t("duplicate"), icon: DocumentDuplicateIcon, onSelect: () => onDuplicate(host) },
+    { label: t("delete"), icon: TrashIcon, danger: true, onSelect: () => onDelete(host) },
+  ];
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-head">
-        <h1>Mieterm</h1>
-        <button className="ghost" onClick={onAdd} title={t("addServer")}>＋</button>
-      </div>
-
       <div className="sidebar-search">
-        <input
-          value={query}
-          placeholder={t("searchServers")}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <MagnifyingGlassIcon
+            className="icon"
+            style={{ position: "absolute", left: 6, color: "var(--text-faint)" }}
+          />
+          <input
+            value={filter}
+            placeholder={t("searchServers")}
+            style={{ paddingLeft: 26 }}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </div>
       </div>
 
-      <div className="sidebar-list" onClick={() => setMenuFor(null)}>
+      <div className="sidebar-body">
         {hosts.length === 0 && (
-          <div className="empty">
-            <strong>{t("noServers")}</strong>
-            {t("noServersHint")}
+          <div className="empty" style={{ paddingTop: 36 }}>
+            <ServerStackIcon className="icon-xl" />
+            <div>{t("noServers")}</div>
+            <div className="hint">{t("noServersHint")}</div>
+            <button className="primary" onClick={onAdd}>
+              <ServerStackIcon className="icon" />
+              {t("addServer")}
+            </button>
           </div>
         )}
 
         {groups.map(([tag, groupHosts]) => (
           <div key={tag || "__untagged"}>
-            {tag && <div className="group-label">{tag}</div>}
+            {tag && <div className="group-title">{tag}</div>}
             {groupHosts.map((host) => (
               <div
                 key={host.id}
-                className={`host${host.id === selectedId ? " selected" : ""}`}
+                className={`tree-row${host.id === selectedId ? " selected" : ""}`}
                 onClick={() => onSelect(host)}
                 onDoubleClick={() => onConnect(host)}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  setMenuFor(host.id === menuFor ? null : host.id);
+                  onSelect(host);
+                  setMenu({ x: e.clientX, y: e.clientY, items: hostMenu(host) });
                 }}
-                title={hostSubtitle(host)}
               >
-                <div className="host-badge" style={{ background: `var(--dot-${host.color})` }}>
-                  {hostInitials(host)}
-                </div>
-                <div className="host-text">
-                  <div className="host-name">{hostLabel(host)}</div>
-                  <div className="host-sub">{hostSubtitle(host)}</div>
-                </div>
-                {connectedIds.has(host.id) && <div className="host-live" />}
-                <div className="host-actions" onClick={(e) => e.stopPropagation()}>
-                  {/* The one-click copies: the things you paste into a ticket or another
-                      tool the moment you look a server up. */}
-                  <button
-                    className="ghost"
-                    title={t("copyHost")}
-                    onClick={() => copy(host.hostname, t("copyHost"))}
-                  >
-                    ⧉
-                  </button>
-                  <button className="ghost" title={t("connect")} onClick={() => onConnect(host)}>
-                    ▸
-                  </button>
-                </div>
-
-                {menuFor === host.id && (
-                  <HostMenu
-                    host={host}
-                    onClose={() => setMenuFor(null)}
-                    onConnect={() => onConnect(host)}
-                    onFiles={() => onFiles(host)}
-                    onEdit={() => onEdit(host)}
-                    onDuplicate={() => onDuplicate(host)}
-                    onDelete={() => onDelete(host)}
-                    onCopy={copy}
-                    t={t}
-                  />
+                <span
+                  className="status-dot"
+                  title={connectedIds.has(host.id) ? t("connected") : t("notConnected")}
+                  style={{
+                    background: connectedIds.has(host.id) ? "var(--success)" : "var(--text-faint)",
+                  }}
+                />
+                <ServerStackIcon className="icon" style={{ color: `var(--dot-${host.color})` }} />
+                <span className="label">
+                  <div style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{hostLabel(host)}</div>
+                  <div className="sub">{hostSubtitle(host)}</div>
+                </span>
+                {host.auth === "key" && (
+                  <KeyIcon className="icon" style={{ color: "var(--text-faint)" }} />
                 )}
+                {host.auth === "password" && (
+                  <LockClosedIcon className="icon" style={{ color: "var(--text-faint)" }} />
+                )}
+                <span className="trailing">
+                  <button
+                    className="quiet"
+                    title={t("copyHost")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void copy(host.hostname, t("copyHost"));
+                    }}
+                  >
+                    <ClipboardDocumentIcon className="icon" />
+                  </button>
+                  <button
+                    className="quiet"
+                    title={t("edit")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(host);
+                    }}
+                  >
+                    <PencilSquareIcon className="icon" />
+                  </button>
+                </span>
               </div>
             ))}
           </div>
         ))}
       </div>
 
-      <div className="sidebar-foot">
-        <button onClick={onLocal}>{t("localTerminal")}</button>
-        <button onClick={onAdd}>{t("addServer")}</button>
-      </div>
+      {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}
     </aside>
-  );
-}
-
-function HostMenu({
-  host,
-  onClose,
-  onConnect,
-  onFiles,
-  onEdit,
-  onDuplicate,
-  onDelete,
-  onCopy,
-  t,
-}: {
-  host: Host;
-  onClose: () => void;
-  onConnect: () => void;
-  onFiles: () => void;
-  onEdit: () => void;
-  onDuplicate: () => void;
-  onDelete: () => void;
-  onCopy: (text: string, label: string) => void;
-  t: Translate;
-}) {
-  const sshCommand = `ssh${host.port === 22 ? "" : ` -p ${host.port}`} ${
-    host.username ? `${host.username}@` : ""
-  }${host.hostname}`;
-
-  const items: Array<[string, () => void] | "divider"> = [
-    [t("connect"), onConnect],
-    [t("files"), onFiles],
-    "divider",
-    [t("copyHost"), () => onCopy(host.hostname, t("copyHost"))],
-    [
-      t("copyUserHost"),
-      () => onCopy(`${host.username ? `${host.username}@` : ""}${host.hostname}`, t("copyUserHost")),
-    ],
-    [t("copySshCommand"), () => onCopy(sshCommand, t("copySshCommand"))],
-    "divider",
-    [t("edit"), onEdit],
-    [t("duplicate"), onDuplicate],
-    [t("delete"), onDelete],
-  ];
-
-  return (
-    <div
-      onMouseLeave={onClose}
-      style={{
-        position: "absolute",
-        left: 12,
-        top: "100%",
-        zIndex: 30,
-        minWidth: 190,
-        background: "var(--bg)",
-        border: "1px solid var(--border-strong)",
-        borderRadius: "var(--radius)",
-        boxShadow: "0 8px 26px rgba(0,0,0,0.35)",
-        padding: 4,
-      }}
-    >
-      {items.map((item, index) =>
-        item === "divider" ? (
-          <div
-            key={`d${index}`}
-            style={{ height: 1, background: "var(--border)", margin: "4px 2px" }}
-          />
-        ) : (
-          <button
-            key={item[0]}
-            className="ghost"
-            style={{
-              display: "block",
-              width: "100%",
-              textAlign: "left",
-              padding: "4px 8px",
-              color: item[0] === t("delete") ? "var(--danger)" : undefined,
-            }}
-            onClick={() => {
-              item[1]();
-              onClose();
-            }}
-          >
-            {item[0]}
-          </button>
-        ),
-      )}
-    </div>
   );
 }

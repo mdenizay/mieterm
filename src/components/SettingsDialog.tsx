@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Cog6ToothIcon } from "@heroicons/react/24/outline";
 import { api } from "../lib/api";
 import { TERMINAL_THEMES } from "../lib/themes";
 import type { Diagnostics, Settings } from "../lib/types";
@@ -30,28 +31,27 @@ export function SettingsDialog({ settings: initial, onSave, onClose, t }: Props)
   return (
     <div className="scrim" onMouseDown={onClose}>
       <div className="dialog wide" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="dialog-head">{t("settings")}</div>
+        <h2>
+          <Cog6ToothIcon className="icon" />
+          {t("settings")}
+        </h2>
 
         <div className="dialog-body">
-          <div className="group-label">{t("appearance")}</div>
+          <div className="section-title">{t("appearance")}</div>
 
-          <div className="field">
-            <label>{t("uiTheme")}</label>
-            <div className="segmented">
-              {(["system", "light", "dark"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  className={settings.uiTheme === mode ? "on" : ""}
-                  onClick={() => patch({ uiTheme: mode })}
-                >
-                  {t(mode)}
-                </button>
-              ))}
+          <div className="row">
+            <div className="field">
+              <label>{t("uiTheme")}</label>
+              <select
+                value={settings.uiTheme}
+                onChange={(e) => patch({ uiTheme: e.target.value as Settings["uiTheme"] })}
+              >
+                <option value="system">{t("system")}</option>
+                <option value="light">{t("light")}</option>
+                <option value="dark">{t("dark")}</option>
+              </select>
             </div>
-          </div>
-
-          <div className="field field-row">
-            <div>
+            <div className="field">
               <label>{t("theme")}</label>
               <select
                 value={settings.terminalTheme}
@@ -62,7 +62,7 @@ export function SettingsDialog({ settings: initial, onSave, onClose, t }: Props)
                 ))}
               </select>
             </div>
-            <div>
+            <div className="field">
               <label>{t("language")}</label>
               <select
                 value={settings.language}
@@ -74,15 +74,12 @@ export function SettingsDialog({ settings: initial, onSave, onClose, t }: Props)
             </div>
           </div>
 
-          <div className="field field-row">
-            <div style={{ flex: 3 }}>
+          <div className="row">
+            <div className="field" style={{ flex: 3 }}>
               <label>{t("font")}</label>
-              <input
-                value={settings.fontFamily}
-                onChange={(e) => patch({ fontFamily: e.target.value })}
-              />
+              <input value={settings.fontFamily} onChange={(e) => patch({ fontFamily: e.target.value })} />
             </div>
-            <div style={{ flex: 1 }}>
+            <div className="field" style={{ flex: 1 }}>
               <label>{t("fontSize")}</label>
               <input
                 type="number"
@@ -94,10 +91,10 @@ export function SettingsDialog({ settings: initial, onSave, onClose, t }: Props)
             </div>
           </div>
 
-          <div className="group-label">{t("terminal")}</div>
+          <div className="section-title">{t("terminal")}</div>
 
-          <div className="field field-row">
-            <div>
+          <div className="row">
+            <div className="field">
               <label>{t("cursor")}</label>
               <select
                 value={settings.cursorStyle}
@@ -108,7 +105,7 @@ export function SettingsDialog({ settings: initial, onSave, onClose, t }: Props)
                 <option value="underline">{t("underline")}</option>
               </select>
             </div>
-            <div>
+            <div className="field">
               <label>{t("scrollback")}</label>
               <input
                 type="number"
@@ -119,7 +116,7 @@ export function SettingsDialog({ settings: initial, onSave, onClose, t }: Props)
                 onChange={(e) => patch({ scrollback: Number(e.target.value) || 5000 })}
               />
             </div>
-            <div>
+            <div className="field">
               <label>{t("keepalive")}</label>
               <input
                 type="number"
@@ -131,48 +128,49 @@ export function SettingsDialog({ settings: initial, onSave, onClose, t }: Props)
             </div>
           </div>
 
-          <label className="checkbox" style={{ marginBottom: 7 }}>
+          <label className="check">
             <input
               type="checkbox"
               checked={settings.cursorBlink}
               onChange={(e) => patch({ cursorBlink: e.target.checked })}
             />
-            <span>{t("blink")}</span>
+            {t("blink")}
           </label>
-          <label className="checkbox" style={{ marginBottom: 7 }}>
+          <label className="check">
             <input
               type="checkbox"
               checked={settings.copyOnSelect}
               onChange={(e) => patch({ copyOnSelect: e.target.checked })}
             />
-            <span>{t("copyOnSelect")}</span>
+            {t("copyOnSelect")}
           </label>
-          <label className="checkbox">
+          <label className="check">
             <input
               type="checkbox"
               checked={settings.recordSessions}
               onChange={(e) => patch({ recordSessions: e.target.checked })}
             />
-            <span>{t("recordSessions")}</span>
+            {t("recordSessions")}
           </label>
 
           {diagnostics && (
             <>
-              <div className="group-label">{t("about")}</div>
-              <div className="row-sub">
+              <div className="section-title">{t("about")}</div>
+              <div className="hint">
                 {t("version")}: {diagnostics.version} · {diagnostics.platform}
               </div>
-              <div className="row-sub">
+              <div className="hint">
                 {t("sshClient")}: {diagnostics.sshPath}
               </div>
-              <div className="row-sub">
+              <div className="hint">
                 {t("dataFolder")}: {diagnostics.dataDir}
               </div>
             </>
           )}
         </div>
 
-        <div className="dialog-foot">
+        <div className="dialog-footer">
+          <div className="spacer" />
           <button className="primary" onClick={onClose}>{t("close")}</button>
         </div>
       </div>

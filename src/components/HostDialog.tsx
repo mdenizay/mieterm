@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { FolderOpenIcon, ServerStackIcon } from "@heroicons/react/24/outline";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { api } from "../lib/api";
 import { asError, HOST_COLORS, type AppError, type Host } from "../lib/types";
@@ -45,18 +46,17 @@ export function HostDialog({ host: initial, onSaved, onCancel, onError, t }: Pro
   };
 
   const pickKey = async () => {
-    const selected = await openFileDialog({
-      multiple: false,
-      directory: false,
-      title: t("privateKey"),
-    });
+    const selected = await openFileDialog({ multiple: false, directory: false, title: t("privateKey") });
     if (typeof selected === "string") patch({ keyPath: selected });
   };
 
   return (
     <div className="scrim" onMouseDown={onCancel}>
       <div className="dialog wide" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="dialog-head">{initial.id ? t("editServer") : t("newServer")}</div>
+        <h2>
+          <ServerStackIcon className="icon" />
+          {initial.id ? t("editServer") : t("newServer")}
+        </h2>
 
         <div className="dialog-body">
           <div className="field">
@@ -69,8 +69,8 @@ export function HostDialog({ host: initial, onSaved, onCancel, onError, t }: Pro
             />
           </div>
 
-          <div className="field field-row">
-            <div style={{ flex: 3 }}>
+          <div className="row">
+            <div className="field" style={{ flex: 3 }}>
               <label>{t("hostname")}</label>
               <input
                 value={host.hostname}
@@ -78,7 +78,7 @@ export function HostDialog({ host: initial, onSaved, onCancel, onError, t }: Pro
                 onChange={(e) => patch({ hostname: e.target.value })}
               />
             </div>
-            <div style={{ flex: 1 }}>
+            <div className="field" style={{ flex: 1 }}>
               <label>{t("port")}</label>
               <input
                 type="number"
@@ -88,22 +88,23 @@ export function HostDialog({ host: initial, onSaved, onCancel, onError, t }: Pro
             </div>
           </div>
 
-          <div className="field">
-            <label>{t("username")}</label>
-            <input
-              value={host.username}
-              placeholder="root"
-              onChange={(e) => patch({ username: e.target.value })}
-            />
-          </div>
-
-          <div className="field">
-            <label>{t("authentication")}</label>
-            <select value={host.auth} onChange={(e) => patch({ auth: e.target.value as Host["auth"] })}>
-              <option value="agent">{t("agentAuth")}</option>
-              <option value="password">{t("passwordAuth")}</option>
-              <option value="key">{t("keyAuth")}</option>
-            </select>
+          <div className="row">
+            <div className="field">
+              <label>{t("username")}</label>
+              <input
+                value={host.username}
+                placeholder="root"
+                onChange={(e) => patch({ username: e.target.value })}
+              />
+            </div>
+            <div className="field">
+              <label>{t("authentication")}</label>
+              <select value={host.auth} onChange={(e) => patch({ auth: e.target.value as Host["auth"] })}>
+                <option value="agent">{t("agentAuth")}</option>
+                <option value="password">{t("passwordAuth")}</option>
+                <option value="key">{t("keyAuth")}</option>
+              </select>
+            </div>
           </div>
 
           {host.auth === "password" && (
@@ -123,13 +124,16 @@ export function HostDialog({ host: initial, onSaved, onCancel, onError, t }: Pro
             <>
               <div className="field">
                 <label>{t("privateKey")}</label>
-                <div style={{ display: "flex", gap: 7 }}>
+                <div className="row">
                   <input
                     value={host.keyPath}
                     placeholder="~/.ssh/id_ed25519"
                     onChange={(e) => patch({ keyPath: e.target.value })}
                   />
-                  <button onClick={pickKey} style={{ flex: "0 0 auto" }}>{t("choose")}</button>
+                  <button onClick={pickKey} style={{ flex: "0 0 auto" }}>
+                    <FolderOpenIcon className="icon" />
+                    {t("choose")}
+                  </button>
                 </div>
               </div>
               <div className="field">
@@ -145,8 +149,10 @@ export function HostDialog({ host: initial, onSaved, onCancel, onError, t }: Pro
             </>
           )}
 
-          <div className="field field-row">
-            <div>
+          <hr className="divider" />
+
+          <div className="row">
+            <div className="field">
               <label>{t("tags")}</label>
               <input
                 value={host.tags.join(", ")}
@@ -157,7 +163,7 @@ export function HostDialog({ host: initial, onSaved, onCancel, onError, t }: Pro
               />
               <div className="hint">{t("tagsHint")}</div>
             </div>
-            <div style={{ flex: "0 0 auto" }}>
+            <div className="field" style={{ flex: "0 0 auto" }}>
               <label>{t("colour")}</label>
               <div className="swatches">
                 {HOST_COLORS.map((colour) => (
@@ -198,7 +204,8 @@ export function HostDialog({ host: initial, onSaved, onCancel, onError, t }: Pro
           </div>
         </div>
 
-        <div className="dialog-foot">
+        <div className="dialog-footer">
+          <div className="spacer" />
           <button onClick={onCancel}>{t("cancel")}</button>
           <button className="primary" onClick={submit} disabled={!host.hostname.trim() || saving}>
             {t("save")}
